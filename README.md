@@ -9,7 +9,7 @@ Coreos kubernetes cluster with bootkube
 - Start `./bootkube-up local-cluster`
 - use `corectl ps` grab the IP for the master-1 and update `/etc/hosts` ( have not figured out why the corectl dns resolution does not work )
 
-#### Caviats
+#### Caveats
 
 - Changing the api server name in the render command will require edits to bootkube-up
 - CPU, Memory and Disk size of coreos is hardcoded
