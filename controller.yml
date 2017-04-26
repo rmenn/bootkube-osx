@@ -1,0 +1,69 @@
+#cloud-config
+
+coreos:
+  units:
+    - name: kubelet.service
+      enable: true
+      command: start
+      content: |
+        [Service]
+        EnvironmentFile=/etc/environment
+        Environment=KUBELET_IMAGE_URL=quay.io/coreos/hyperkube
+        Environment=KUBELET_IMAGE_TAG=v1.6.2_coreos.0
+        Environment="RKT_RUN_ARGS=--uuid-file-save=/var/run/kubelet-pod.uuid \
+          --volume etc-resolv,kind=host,source=/etc/resolv.conf \
+          --mount volume=etc-resolv,target=/etc/resolv.conf \
+          --volume var-lib-cni,kind=host,source=/var/lib/cni \
+          --mount volume=var-lib-cni,target=/var/lib/cni"
+        ExecStartPre=/bin/mkdir -p /etc/kubernetes/manifests
+        ExecStartPre=/bin/mkdir -p /etc/kubernetes/cni/net.d
+        ExecStartPre=/bin/mkdir -p /etc/kubernetes/checkpoint-secrets
+        ExecStartPre=/bin/mkdir -p /etc/kubernetes/inactive-manifests
+        ExecStartPre=/bin/mkdir -p /var/lib/cni
+        ExecStartPre=-/usr/bin/rkt rm --uuid-file=/var/run/kubelet-pod.uuid
+        ExecStart=/usr/lib/coreos/kubelet-wrapper \
+          --kubeconfig=/etc/kubernetes/kubeconfig \
+          --require-kubeconfig \
+          --client-ca-file=/etc/kubernetes/ca.crt \
+          --anonymous-auth=false \
+          --cni-conf-dir=/etc/kubernetes/cni/net.d \
+          --network-plugin=cni \
+          --lock-file=/var/run/lock/kubelet.lock \
+          --exit-on-lock-contention \
+          --pod-manifest-path=/etc/kubernetes/manifests \
+          --allow-privileged \
+          --minimum-container-ttl-duration=3m0s \
+          --hostname-override=${COREOS_PUBLIC_IPV4} \
+          --node-labels=node-role.kubernetes.io/master \
+          --register-with-taints=node-role.kubernetes.io/master=:NoSchedule \
+          --cluster_dns=10.3.0.10 \
+          --cluster_domain=cluster.local
+
+        ExecStop=-/usr/bin/rkt stop --uuid-file=/var/run/kubelet-pod.uuid
+        Restart=always
+        RestartSec=5
+
+        [Install]
+        WantedBy=multi-user.target
+
+    - name: bootkube.service
+      command: "start"
+      content: |
+        [Unit]
+        Description=Start bootkube to launch a self-hosted cluster
+        Requires=kubelet.service
+        After=kubelet.service
+        [Service]
+        Type=oneshot
+        EnvironmentFile=/etc/environment
+        ExecStart=/usr/bin/rkt run --volume home,kind=host,source=/home/core \
+          --mount volume=home,target=/core \
+          --volume etc-resolv,kind=host,source=/etc/resolv.conf \
+          --mount volume=etc-resolv,target=/etc/resolv.conf \
+          --volume manifests,kind=host,source=/etc/kubernetes \
+          --mount volume=manifests,target=/etc/kubernetes \
+          --volume ca-certs,kind=host,source=/etc/ssl/certs/ca-certificates.crt \
+          --mount volume=ca-certs,target=/etc/ssl/certs/ca-certificates.crt \
+          --trust-keys-from-https --net=host quay.io/coreos/bootkube:v0.4.1 \
+          --exec /bootkube -- start --asset-dir=/core/ASSETVAR
+        RemainAfterExit=yes

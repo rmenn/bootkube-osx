@@ -1,0 +1,41 @@
+#cloud-config
+
+coreos:
+  units:
+    - name: kubelet.service
+      enable: true
+      command: start
+      content: |
+        [Service]
+        EnvironmentFile=/etc/environment
+        Environment=KUBELET_ACI=quay.io/coreos/hyperkube
+        Environment=KUBELET_VERSION=v1.6.2_coreos.0
+        Environment="RKT_OPTS=--uuid-file-save=/var/run/kubelet-pod.uuid \
+          --volume var-lib-cni,kind=host,source=/var/lib/cni \
+          --mount volume=var-lib-cni,target=/var/lib/cni
+          --volume=resolv,kind=host,source=/etc/resolv.conf
+          --mount volume=resolv,target=/etc/resolv.conf"
+        ExecStartPre=/bin/mkdir -p /etc/kubernetes/manifests
+        ExecStartPre=/bin/mkdir -p /etc/kubernetes/cni/net.d
+        ExecStartPre=/bin/mkdir -p /etc/kubernetes/checkpoint-secrets
+        ExecStartPre=/bin/mkdir -p /srv/kubernetes/manifests
+        ExecStartPre=/bin/mkdir -p /var/lib/cni
+        ExecStartPre=-/usr/bin/rkt rm --uuid-file=/var/run/kubelet-pod.uuid
+        ExecStart=/usr/lib/coreos/kubelet-wrapper \
+          --kubeconfig=/etc/kubernetes/kubeconfig \
+          --require-kubeconfig \
+          --client-ca-file=/etc/kubernetes/ca.crt \
+          --anonymous-auth=false \
+          --cni-conf-dir=/etc/kubernetes/cni/net.d \
+          --network-plugin=cni \
+          --lock-file=/var/run/lock/kubelet.lock \
+          --exit-on-lock-contention=true \
+          --allow-privileged \
+          --node-labels=node-role.kubernetes.io/edge-router
+          --pod-manifest-path=/etc/kubernetes/manifests \
+          --hostname-override=${COREOS_PUBLIC_IPV4} \
+          --cluster_dns=10.3.0.10 \
+          --cluster_domain=cluster.local
+
+        ExecStop=-/usr/bin/rkt stop --uuid-file=/var/run/kubelet-pod.uuid
+        Restart=always

@@ -1,0 +1,57 @@
+#!/bin/bash
+set -euo pipefail
+
+MASTER_NODES=1
+WORKER_NODES=1
+
+ASSET_FOLDER=$1
+
+createVolume() {
+    VOLUME=$1-vol.qcow2
+    qcow-tool create --size=6GiB ${VOLUME}
+    corectl run  --name disk --volume=${VOLUME}
+    corectl ssh disk "yes | sudo mke2fs -b 1024 -i 1024 -t ext4 -E lazy_itable_init=1 /dev/vda -F"
+    corectl halt disk
+}
+
+bootMaster() {
+    echo "Starting $1"
+    corectl run -c stable --name $1 -N 2 -m 2048 --cloud_config ./${ASSET_FOLDER}/controller-user-data.yml -r $1-vol.qcow2 -F
+    corectl put ./${ASSET_FOLDER}.zip $1:/home/core/cluster.zip
+    corectl ssh $1 "unzip cluster.zip && rm cluster.zip && sudo chown -R core:core /home/core/${ASSET_FOLDER}"
+    corectl ssh $1 "sudo cp /home/core/${ASSET_FOLDER}/auth/kubeconfig /etc/kubernetes/"
+    corectl ssh $1 "sudo cp /home/core/${ASSET_FOLDER}/tls/ca.crt /etc/kubernetes/ && sudo chown core:core /etc/kubernetes/ca.crt"
+}
+
+bootWorker() {
+    echo "Starting $1"
+    corectl run -c stable --name $1 -N 2 -m 2048 --cloud_config ./${ASSET_FOLDER}/worker-user-data.yml -r $1-vol.qcow2 -F
+    echo "Configuring $1"
+    corectl put ./${ASSET_FOLDER}/auth/kubeconfig $1:/tmp/
+    corectl put ./${ASSET_FOLDER}/tls/ca.crt $1:/tmp/
+    corectl ssh $1 "sudo cp /tmp/ca.crt /etc/kubernetes && sudo cp /tmp/kubeconfig /etc/kubernetes && sudo chown -R core:core /etc/kubernetes/"
+}
+
+for (( i=1; i<=${MASTER_NODES}; i++ )); do
+  createVolume master-$i
+done
+
+for (( i=1; i<=${WORKER_NODES}; i++ )); do
+  createVolume worker-$i
+done
+
+#corectl kill ${UUID}
+
+cp controller.yml ${ASSET_FOLDER}/controller-user-data.yml
+sed -i '' "s/ASSETVAR/${ASSET_FOLDER}/g" ${ASSET_FOLDER}/controller-user-data.yml
+cp worker.yml ${ASSET_FOLDER}/worker-user-data.yml
+zip -r ${ASSET_FOLDER}.zip ${ASSET_FOLDER}
+
+for (( i=1; i<=${MASTER_NODES}; i++ )); do
+  bootMaster master-$i
+done
+
+for (( i=1; i<=${WORKER_NODES}; i++ )); do
+  bootWorker worker-$i
+done
+
