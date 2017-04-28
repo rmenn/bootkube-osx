@@ -9,7 +9,7 @@ ASSET_FOLDER=$1
 createVolume() {
     VOLUME=$1-vol.qcow2
     qcow-tool create --size=6GiB ${VOLUME}
-    corectl run  --name disk --volume=${VOLUME}
+    corectl -c stable run  --name disk --volume=${VOLUME}
     corectl ssh disk "yes | sudo mke2fs -b 1024 -i 1024 -t ext4 -E lazy_itable_init=1 /dev/vda -F"
     corectl halt disk
 }
