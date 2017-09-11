@@ -9,14 +9,14 @@ ASSET_FOLDER=$1
 createVolume() {
     VOLUME=$1-vol.qcow2
     qcow-tool create --size=6GiB ${VOLUME}
-    corectl -c stable run  --name disk --volume=${VOLUME}
+    corectl run -c stable -o  --name disk --volume=${VOLUME}
     corectl ssh disk "yes | sudo mke2fs -b 1024 -i 1024 -t ext4 -E lazy_itable_init=1 /dev/vda -F"
     corectl halt disk
 }
 
 bootMaster() {
     echo "Starting $1"
-    corectl run -c stable --name $1 -N 2 -m 2048 --cloud_config ./${ASSET_FOLDER}/controller-user-data.yml -r $1-vol.qcow2 -F
+    corectl run -c stable -o --name $1 -N 2 -m 2048 --cloud_config ./${ASSET_FOLDER}/controller-user-data.yml -r $1-vol.qcow2 -F
     corectl put ./${ASSET_FOLDER}.zip $1:/home/core/cluster.zip
     corectl ssh $1 "unzip cluster.zip && rm cluster.zip && sudo chown -R core:core /home/core/${ASSET_FOLDER}"
     corectl ssh $1 "sudo cp /home/core/${ASSET_FOLDER}/auth/kubeconfig /etc/kubernetes/"
@@ -25,7 +25,7 @@ bootMaster() {
 
 bootWorker() {
     echo "Starting $1"
-    corectl run -c stable --name $1 -N 2 -m 2048 --cloud_config ./${ASSET_FOLDER}/worker-user-data.yml -r $1-vol.qcow2 -F
+    corectl run -c stable -o --name $1 -N 2 -m 2048 --cloud_config ./${ASSET_FOLDER}/worker-user-data.yml -r $1-vol.qcow2 -F
     echo "Configuring $1"
     corectl put ./${ASSET_FOLDER}/auth/kubeconfig $1:/tmp/
     corectl put ./${ASSET_FOLDER}/tls/ca.crt $1:/tmp/
