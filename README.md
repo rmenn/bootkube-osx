@@ -2,7 +2,7 @@
 Coreos kubernetes cluster with bootkube
 
 #### Instructions
-- Grab the bootkube 0.6.2 verstion [here][1]
+- Grab the bootkube 0.8.2 verstion [here][1]
 - Install `corectl` and `qcow-tool` both available via brew
 - start `corectld start`
 - download desired coreos image `corectl pull -c stable -v 1465.6.0`
@@ -14,7 +14,8 @@ Coreos kubernetes cluster with bootkube
 
 - Changing the api server name in the render command will require edits to bootkube-up
 - CPU, Memory and Disk size of coreos is hardcoded
-- This uses the self-hosted etcd
+- ~~This uses the self-hosted etcd~~
 - Volume for each coreos is at 6GB, which is again hardcoded
+- etcd runs as single node on master-1
 
-[1]:https://github.com/kubernetes-incubator/bootkube/releases/download/v0.6.2/bootkube.tar.gz
+[1]:https://github.com/kubernetes-incubator/bootkube/releases/download/v0.8.2/bootkube.tar.gz

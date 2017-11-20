@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-MASTER_NODES=1
+MASTER_NODES=2
 WORKER_NODES=1
 
 ASSET_FOLDER=$1
@@ -14,22 +14,25 @@ createVolume() {
     corectl halt disk
 }
 
-bootMaster() {
-    echo "Starting $1"
-    corectl run -c stable -o --name $1 -N 2 -m 2048 --cloud_config ./${ASSET_FOLDER}/controller-user-data.yml -r $1-vol.qcow2 -F
+bootSeed() {
+    echo "starting bootkube server"
+    corectl run -c stable -o --name $1 -N 2 -m 2048 --cloud_config ./${ASSET_FOLDER}/bootkube-user-data.yaml -r $1-vol.qcow2 -F
     corectl put ./${ASSET_FOLDER}.zip $1:/home/core/cluster.zip
+    corectl ssh $1 "sudo mkdir -p /etc/kubernetes && sudo mkdir -p /etc/etcd/tls/etcd"
     corectl ssh $1 "unzip cluster.zip && rm cluster.zip && sudo chown -R core:core /home/core/${ASSET_FOLDER}"
+    corectl ssh $1 "sudo cp /home/core/${ASSET_FOLDER}/tls/etcd-client* /etc/etcd/tls && sudo cp /home/core/${ASSET_FOLDER}/tls/etcd/* /etc/etcd/tls/etcd && sudo chown -R etcd:etcd /etc/etcd && sudo chmod 500 -R /etc/etcd"
     corectl ssh $1 "sudo cp /home/core/${ASSET_FOLDER}/auth/kubeconfig /etc/kubernetes/"
     corectl ssh $1 "sudo cp /home/core/${ASSET_FOLDER}/tls/ca.crt /etc/kubernetes/ && sudo chown core:core /etc/kubernetes/ca.crt"
 }
 
-bootWorker() {
+bootServer() {
     echo "Starting $1"
-    corectl run -c stable -o --name $1 -N 2 -m 2048 --cloud_config ./${ASSET_FOLDER}/worker-user-data.yml -r $1-vol.qcow2 -F
+    type=$(echo $1 | cut -d '-' -f1)
+    corectl run -c stable -o --name $1 -N 2 -m 2048 --cloud_config ./${ASSET_FOLDER}/${type}-user-data.yaml -r $1-vol.qcow2 -F
     echo "Configuring $1"
     corectl put ./${ASSET_FOLDER}/auth/kubeconfig $1:/tmp/
     corectl put ./${ASSET_FOLDER}/tls/ca.crt $1:/tmp/
-    corectl ssh $1 "sudo cp /tmp/ca.crt /etc/kubernetes && sudo cp /tmp/kubeconfig /etc/kubernetes && sudo chown -R core:core /etc/kubernetes/"
+    corectl ssh $1 "sudo cp /tmp/ca.crt /etc/kubernetes/ && sudo cp /tmp/kubeconfig /etc/kubernetes/ && sudo chown -R core:core /etc/kubernetes/"
 }
 
 for (( i=1; i<=${MASTER_NODES}; i++ )); do
@@ -40,18 +43,23 @@ for (( i=1; i<=${WORKER_NODES}; i++ )); do
   createVolume worker-$i
 done
 
-#corectl kill ${UUID}
-
-cp controller.yml ${ASSET_FOLDER}/controller-user-data.yml
-sed -i '' "s/ASSETVAR/${ASSET_FOLDER}/g" ${ASSET_FOLDER}/controller-user-data.yml
-cp worker.yml ${ASSET_FOLDER}/worker-user-data.yml
+echo "generating userdata..."
+cp bootkube.yaml ${ASSET_FOLDER}/bootkube-user-data.yaml
+sed -i '' "s/ASSETVAR/${ASSET_FOLDER}/g" ${ASSET_FOLDER}/bootkube-user-data.yaml
+cp setup.yaml ${ASSET_FOLDER}/master-user-data.yaml
+sed -i '' "s/TYPE/master/g" ${ASSET_FOLDER}/master-user-data.yaml
+cp setup.yaml ${ASSET_FOLDER}/worker-user-data.yaml
+sed -i '' "s/TYPE/edge/g" ${ASSET_FOLDER}/worker-user-data.yaml
+sed -i '' '/register-with-taints/d' ${ASSET_FOLDER}/worker-user-data.yaml
 zip -r ${ASSET_FOLDER}.zip ${ASSET_FOLDER}
 
-for (( i=1; i<=${MASTER_NODES}; i++ )); do
-  bootMaster master-$i
+echo "staring seed server..."
+bootSeed master-1
+for (( i=2; i<=${MASTER_NODES}; i++ )); do
+    bootServer master-$i
 done
 
 for (( i=1; i<=${WORKER_NODES}; i++ )); do
-  bootWorker worker-$i
+    bootServer worker-$i
 done
 
