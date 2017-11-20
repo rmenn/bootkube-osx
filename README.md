@@ -6,7 +6,7 @@ Coreos kubernetes cluster with bootkube
 - Install `corectl` and `qcow-tool` both available via brew
 - start `corectld start`
 - download desired coreos image `corectl pull -c stable -v 1465.6.0`
-- Render `./bootkube render --asset-dir local-cluster --api-servers=https://master-1.coreos.local:443 --experimental-self-hosted-etcd --experimental-calico-network-policy`
+- Render `./bootkube render --asset-dir local-cluster --api-servers=https://master-1.coreos.local:443 --etcd-servers=https://master-1.coreos.local:2379 --network-provider=experimental-canal`
 - Start `./bootkube-up local-cluster`
 - use `corectl ps` grab the IP for the master-1 and update `/etc/hosts` ( have not figured out why the corectl dns resolution does not work )
 
