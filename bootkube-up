@@ -30,7 +30,7 @@ bootServer() {
     type=$(echo $1 | cut -d '-' -f1)
     corectl run -c stable -o --name $1 -N 2 -m 2048 --cloud_config ./${ASSET_FOLDER}/${type}-user-data.yaml -r $1-vol.qcow2 -F
     echo "Configuring $1"
-    corectl put ./${ASSET_FOLDER}/auth/kubeconfig $1:/tmp/
+    corectl put ./${ASSET_FOLDER}/auth/kubeconfig-kubelet $1:/tmp/kubeconfig
     corectl put ./${ASSET_FOLDER}/tls/ca.crt $1:/tmp/
     corectl ssh $1 "sudo cp /tmp/ca.crt /etc/kubernetes/ && sudo cp /tmp/kubeconfig /etc/kubernetes/ && sudo chown -R core:core /etc/kubernetes/"
 }
