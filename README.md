@@ -1,3 +1,5 @@
+## The Repo is no longer maintained as corectld is now defunct
+
 # bootkube-osx
 Coreos kubernetes cluster with bootkube
 
